@@ -90,6 +90,36 @@
     min-height: 60px;
   }
 
+  .lib-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+
+  .lib-section-header .lib-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .btn-clear-lib {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.65rem;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .btn-clear-lib:hover { border-color: var(--danger); color: var(--danger); }
+
   .panel-section {
     padding: 16px;
     border-bottom: 1px solid var(--border);
@@ -850,9 +880,9 @@
 
     <!-- Library -->
     <div class="lib-section">
-      <div class="panel-label">
-        ライブラリ
-        <span class="badge-count" id="lib-count">0</span>
+      <div class="lib-section-header">
+        <span class="lib-title">ライブラリ <span class="badge-count" id="lib-count">0</span></span>
+        <button class="btn-clear-lib" onclick="clearLibrary()">全削除</button>
       </div>
       <div class="thumb-list" id="thumb-list">
         <div style="font-size:0.75rem; color:var(--muted); text-align:center; padding:12px;">
@@ -1279,6 +1309,17 @@ function removeFromLibrary(id) {
   updateInfo();
 }
 window.removeFromLibrary = removeFromLibrary;
+
+function clearLibrary() {
+  if (library.length === 0) return;
+  library = [];
+  cells = cells.map(() => null);
+  renderLibrary();
+  renderGrid();
+  updateInfo();
+  showToast('ライブラリを全削除しました');
+}
+window.clearLibrary = clearLibrary;
 
 function placeInFirstEmpty(imgId) {
   const idx = cells.indexOf(null);
