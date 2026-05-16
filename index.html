@@ -65,7 +65,29 @@
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ソース・グリッド設定・アクションは縮まない */
+  .panel-left .fixed-section {
+    flex-shrink: 0;
+  }
+
+  /* ライブラリセクションだけ余白を使って伸縮＋スクロール */
+  .panel-left .lib-section {
+    flex: 1 1 120px;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+  }
+
+  .panel-left .lib-section .thumb-list {
+    flex: 1;
     overflow-y: auto;
+    min-height: 60px;
   }
 
   .panel-section {
@@ -163,37 +185,60 @@
   .slice-line {
     position: absolute;
     left: 0; right: 0;
-    height: 2px;
-    background: var(--accent);
+    height: 44px;
+    margin-top: -22px;
+    display: flex;
+    align-items: center;
     cursor: row-resize;
     z-index: 10;
   }
 
-  .slice-line::after {
-    content: attr(data-idx);
+  /* 見た目の線 */
+  .slice-line::before {
+    content: '';
     position: absolute;
-    right: 4px;
-    top: -9px;
+    left: 0; right: 0;
+    top: 50%;
+    height: 2px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  .slice-line-label {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
     font-family: 'DM Mono', monospace;
     font-size: 0.6rem;
     color: var(--accent);
-    background: var(--bg);
-    padding: 0 3px;
+    background: rgba(15,14,13,0.85);
+    padding: 1px 5px;
+    border-radius: 3px;
+    pointer-events: none;
+    white-space: nowrap;
   }
 
   .slice-line .del-btn {
     position: absolute;
-    left: 4px;
-    top: -8px;
-    width: 16px; height: 16px;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px; height: 36px;
     background: var(--danger);
     color: #fff;
     border: none;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 0.55rem;
+    font-size: 1rem;
+    font-weight: 700;
     display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    z-index: 2;
+    -webkit-tap-highlight-color: transparent;
   }
+
+  .slice-line .del-btn:active { transform: translateY(-50%) scale(0.9); }
 
   .slice-add-hint {
     font-size: 0.72rem;
@@ -450,6 +495,25 @@
     pointer-events: none;
   }
 
+  /* フィットモード: contain（余白あり） */
+  .grid-cell.fit-contain img {
+    object-fit: contain;
+    background: #0a0909;
+  }
+
+  /* フィットモード: auto-height（セルの高さが画像に合わせて可変） */
+  .grid-canvas.fit-auto-height {
+    align-items: start;
+  }
+  .grid-canvas.fit-auto-height .grid-cell {
+    height: auto !important;
+    overflow: visible;
+  }
+  .grid-canvas.fit-auto-height .grid-cell img {
+    height: auto;
+    object-fit: fill;
+  }
+
   .cell-empty {
     width: 100%;
     height: 100%;
@@ -532,6 +596,23 @@
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 600px) {
+    header { padding: 12px 16px; }
+    .main { flex-direction: column; height: auto; min-height: calc(100vh - 49px); }
+    .panel-left {
+      width: 100%;
+      min-width: unset;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    .panel-center { height: 60vw; min-height: 280px; flex-shrink: 0; }
+    .canvas-toolbar { padding: 8px 12px; flex-wrap: wrap; gap: 6px; }
+    .grid-area { padding: 12px; }
+  }
 
   /* ===== PREVIEW MODAL ===== */
   .modal-overlay {
@@ -721,7 +802,7 @@
   <div class="panel-left">
 
     <!-- Source Tabs -->
-    <div class="panel-section">
+    <div class="panel-section fixed-section">
       <div class="panel-label">ソース選択</div>
       <div class="tabs">
         <div class="tab active" id="tab-slice" onclick="switchTab('slice')">1枚をカット</div>
@@ -738,10 +819,21 @@
 
         <div class="slice-controls" id="slice-controls" style="margin-top:12px;">
           <div class="panel-label" style="margin-bottom:8px;">クリックで分割線を追加</div>
+
+          <!-- 自動分割 -->
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+            <span style="font-size:0.75rem; color:var(--text); white-space:nowrap;">自動分割</span>
+            <button class="btn-small" onclick="adjAutoN(-1)">−</button>
+            <div class="num-display" id="auto-n-display">4</div>
+            <button class="btn-small" onclick="adjAutoN(1)">＋</button>
+            <span style="font-size:0.72rem; color:var(--muted);">等分</span>
+            <button onclick="applyAutoSlice()" style="flex:1; padding:5px 8px; background:var(--accent); color:#0f0e0d; border:none; border-radius:3px; font-size:0.72rem; font-weight:700; cursor:pointer; white-space:nowrap;">⚡ 適用</button>
+          </div>
+
           <div class="slice-preview-wrap" id="slice-wrap">
             <img id="slice-img" src="" alt="">
           </div>
-          <div class="slice-add-hint">↑ 画像をクリックして分割線を追加</div>
+          <div class="slice-add-hint">↑ 画像をタップ/クリックで分割線追加・ドラッグで微調整</div>
           <button class="btn-accent-sm" onclick="applySlices()">✂ カットしてライブラリへ追加</button>
         </div>
       </div>
@@ -757,7 +849,7 @@
     </div>
 
     <!-- Library -->
-    <div class="panel-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+    <div class="lib-section">
       <div class="panel-label">
         ライブラリ
         <span class="badge-count" id="lib-count">0</span>
@@ -770,7 +862,7 @@
     </div>
 
     <!-- Grid Settings -->
-    <div class="panel-section">
+    <div class="panel-section fixed-section">
       <div class="panel-label">グリッド設定</div>
 
       <div class="setting-row">
@@ -806,10 +898,19 @@
         <div class="setting-label">ギャップ <span class="num-display" id="gap-display" style="font-size:0.75rem;">4</span>px</div>
         <input type="range" class="gap-slider" min="0" max="20" value="4" oninput="setGap(this.value)">
       </div>
+
+      <div class="setting-row" style="margin-bottom:6px; margin-top:10px;">
+        <div class="setting-label">画像フィット</div>
+      </div>
+      <div class="ratio-btns" id="fit-btns">
+        <button class="ratio-btn active" onclick="setFitMode('cover',this)" title="セルを埋める（トリミング）">クロップ</button>
+        <button class="ratio-btn" onclick="setFitMode('contain',this)" title="画像全体を表示（余白あり）">余白</button>
+        <button class="ratio-btn" onclick="setFitMode('auto-height',this)" title="最長画像に合わせて行高を伸ばす">高さ合わせ</button>
+      </div>
     </div>
 
     <!-- Actions -->
-    <div class="panel-section">
+    <div class="panel-section fixed-section">
       <button class="btn-primary" onclick="autoFill()">⚡ 自動配置</button>
       <button class="btn-secondary" onclick="clearGrid()">🗑 グリッドをクリア</button>
       <button class="btn-primary" style="background:var(--accent2);" onclick="exportGrid()">💾 画像として保存</button>
@@ -870,16 +971,20 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ===== STATE =====
-let library = []; // {id, name, dataUrl, thumb}
-let grid = { cols: 3, rows: 4, ratioW: 4, ratioH: 6, gap: 4 };
-let cells = []; // array of {imgId or null}
-let zoomLevel = 1.0;
+document.addEventListener('DOMContentLoaded', () => {
 
-let sliceLines = []; // y percentages 0-100
+// ===== STATE =====
+let library = [];
+let grid = { cols: 3, rows: 4, ratioW: 4, ratioH: 6, gap: 4 };
+let cells = [];
+let zoomLevel = 1.0;
+let sliceLines = [];
 let sliceImg = null;
+let autoN = 4;
 let draggingThumb = null;
-let dragOverCell = null;
+let draggingCell = null;
+let libIdCounter = 0;
+let fitMode = 'cover'; // 'cover' | 'contain' | 'auto-height'
 
 // ===== INIT =====
 initGrid();
@@ -898,8 +1003,26 @@ function switchTab(tab) {
   document.getElementById('pane-slice').style.display = tab === 'slice' ? '' : 'none';
   document.getElementById('pane-multi').style.display = tab === 'multi' ? '' : 'none';
 }
+window.switchTab = switchTab;
 
 // ===== SLICE TAB =====
+function adjAutoN(d) {
+  autoN = Math.max(2, Math.min(20, autoN + d));
+  document.getElementById('auto-n-display').textContent = autoN;
+}
+window.adjAutoN = adjAutoN;
+
+function applyAutoSlice() {
+  if (!sliceImg) { showToast('先に画像を読み込んでください'); return; }
+  sliceLines = [];
+  for (let i = 1; i < autoN; i++) {
+    sliceLines.push(Math.round((i / autoN) * 1000) / 10);
+  }
+  renderSliceLines();
+  showToast(`${autoN}等分の分割線を追加しました`);
+}
+window.applyAutoSlice = applyAutoSlice;
+
 function loadSliceImage(input) {
   const file = input.files[0];
   if (!file) return;
@@ -914,56 +1037,116 @@ function loadSliceImage(input) {
   };
   reader.readAsDataURL(file);
 }
+window.loadSliceImage = loadSliceImage;
 
 const sliceWrap = document.getElementById('slice-wrap');
+
+// クリック／タップで分割線追加
 sliceWrap.addEventListener('click', e => {
-  if (e.target.classList.contains('slice-line') || e.target.classList.contains('del-btn')) return;
+  if (e.target.closest('.slice-line')) return;
   const rect = sliceWrap.getBoundingClientRect();
   const pct = ((e.clientY - rect.top) / rect.height) * 100;
+  if (pct < 0.5 || pct > 99.5) return;
   sliceLines.push(Math.round(pct * 10) / 10);
   sliceLines.sort((a, b) => a - b);
   renderSliceLines();
 });
 
 function renderSliceLines() {
-  // remove existing lines
   sliceWrap.querySelectorAll('.slice-line').forEach(el => el.remove());
+
   sliceLines.forEach((pct, i) => {
+    // ドラッグ中にsortが走ってもインデックスがずれないようスナップショット
+    const myIndex = () => sliceLines.indexOf(sliceLines[i]);
+
     const line = document.createElement('div');
     line.className = 'slice-line';
     line.style.top = pct + '%';
-    line.setAttribute('data-idx', `cut ${i+1}`);
 
     const del = document.createElement('button');
     del.className = 'del-btn';
     del.textContent = '×';
-    del.onclick = e => {
+    const doDelete = e => {
+      e.preventDefault();
       e.stopPropagation();
-      sliceLines.splice(i, 1);
+      // 現在値で正確に特定して削除
+      const val = parseFloat(line.style.top);
+      const idx = sliceLines.findIndex(v => Math.abs(v - val) < 0.01);
+      if (idx !== -1) sliceLines.splice(idx, 1);
       renderSliceLines();
     };
+    del.addEventListener('click', doDelete);
+    del.addEventListener('touchend', doDelete);
     line.appendChild(del);
 
-    // drag to move
-    let startY, startPct;
+    const label = document.createElement('span');
+    label.className = 'slice-line-label';
+    label.textContent = `cut ${i+1}  ${pct.toFixed(1)}%`;
+    line.appendChild(label);
+
+    // ===== マウスドラッグ =====
     line.addEventListener('mousedown', e => {
+      if (e.target === del) return;
       e.stopPropagation();
-      startY = e.clientY;
-      startPct = sliceLines[i];
+      e.preventDefault();
+      const startY = e.clientY;
+      const startPct = parseFloat(line.style.top);
+      const rect = sliceWrap.getBoundingClientRect();
+      // ドラッグ対象の現在値を記録
+      let currentVal = startPct;
+
       const onMove = ev => {
-        const rect = sliceWrap.getBoundingClientRect();
         const delta = ((ev.clientY - startY) / rect.height) * 100;
-        sliceLines[i] = Math.max(0, Math.min(100, startPct + delta));
-        sliceLines.sort((a, b) => a - b);
-        renderSliceLines();
+        const newPct = Math.max(0.5, Math.min(99.5, startPct + delta));
+        const rounded = Math.round(newPct * 10) / 10;
+        // sliceLines内で現在値を探して更新
+        const idx = sliceLines.findIndex(v => Math.abs(v - currentVal) < 0.5);
+        if (idx !== -1) sliceLines[idx] = rounded;
+        currentVal = rounded;
+        line.style.top = rounded + '%';
+        label.textContent = `cut ${i+1}  ${rounded.toFixed(1)}%`;
       };
       const onUp = () => {
+        sliceLines.sort((a, b) => a - b);
+        renderSliceLines();
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
+
+    // ===== タッチドラッグ =====
+    line.addEventListener('touchstart', e => {
+      if (e.target === del) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const touch = e.touches[0];
+      const startY = touch.clientY;
+      const startPct = parseFloat(line.style.top);
+      const rect = sliceWrap.getBoundingClientRect();
+      let currentVal = startPct;
+
+      const onMove = ev => {
+        const t = ev.touches[0];
+        const delta = ((t.clientY - startY) / rect.height) * 100;
+        const newPct = Math.max(0.5, Math.min(99.5, startPct + delta));
+        const rounded = Math.round(newPct * 10) / 10;
+        const idx = sliceLines.findIndex(v => Math.abs(v - currentVal) < 0.5);
+        if (idx !== -1) sliceLines[idx] = rounded;
+        currentVal = rounded;
+        line.style.top = rounded + '%';
+        label.textContent = `cut ${i+1}  ${rounded.toFixed(1)}%`;
+      };
+      const onEnd = () => {
+        sliceLines.sort((a, b) => a - b);
+        renderSliceLines();
+        line.removeEventListener('touchmove', onMove);
+        line.removeEventListener('touchend', onEnd);
+      };
+      line.addEventListener('touchmove', onMove, { passive: false });
+      line.addEventListener('touchend', onEnd);
+    }, { passive: false });
 
     sliceWrap.appendChild(line);
   });
@@ -993,6 +1176,7 @@ async function applySlices() {
 
   showToast(`${cuts.length - 1}枚のカットをライブラリへ追加しました`);
 }
+window.applySlices = applySlices;
 
 // ===== MULTI TAB =====
 function loadMultiImages(input) {
@@ -1004,6 +1188,7 @@ function loadMultiImages(input) {
   });
   showToast(`${files.length}枚を追加しました`);
 }
+window.loadMultiImages = loadMultiImages;
 
 // Drag and drop for multi tab
 const dzMulti = document.getElementById('dz-multi');
@@ -1042,8 +1227,6 @@ dzSlice.addEventListener('drop', e => {
 });
 
 // ===== LIBRARY =====
-let libIdCounter = 0;
-
 function addToLibrary(name, dataUrl) {
   const id = ++libIdCounter;
   library.push({ id, name, dataUrl });
@@ -1083,21 +1266,19 @@ function renderLibrary() {
       draggingThumb = null;
     });
 
-    // click to place in first empty cell
     el.addEventListener('click', () => placeInFirstEmpty(item.id));
-
     list.appendChild(el);
   });
 }
 
 function removeFromLibrary(id) {
   library = library.filter(l => l.id !== id);
-  // clear from cells
   cells = cells.map(c => c === id ? null : c);
   renderLibrary();
   renderGrid();
   updateInfo();
 }
+window.removeFromLibrary = removeFromLibrary;
 
 function placeInFirstEmpty(imgId) {
   const idx = cells.indexOf(null);
@@ -1114,6 +1295,7 @@ function adjCols(d) {
   document.getElementById('info-cols').textContent = grid.cols;
   resizeCells();
 }
+window.adjCols = adjCols;
 
 function adjRows(d) {
   grid.rows = Math.max(1, Math.min(20, grid.rows + d));
@@ -1121,6 +1303,7 @@ function adjRows(d) {
   document.getElementById('info-rows').textContent = grid.rows;
   resizeCells();
 }
+window.adjRows = adjRows;
 
 function resizeCells() {
   const total = grid.cols * grid.rows;
@@ -1139,6 +1322,7 @@ function setRatio(w, h, btn) {
   btn.classList.add('active');
   renderGrid();
 }
+window.setRatio = setRatio;
 
 function setGap(v) {
   grid.gap = parseInt(v);
@@ -1146,6 +1330,15 @@ function setGap(v) {
   document.documentElement.style.setProperty('--grid-gap', v + 'px');
   renderGrid();
 }
+window.setGap = setGap;
+
+function setFitMode(mode, btn) {
+  fitMode = mode;
+  document.querySelectorAll('#fit-btns .ratio-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+window.setFitMode = setFitMode;
 
 // ===== RENDER GRID =====
 function renderGrid() {
@@ -1166,7 +1359,14 @@ function renderGrid() {
   const cellH = Math.round(cellW * (grid.ratioH / grid.ratioW));
 
   canvas.style.gridTemplateColumns = `repeat(${grid.cols}, ${cellW}px)`;
-  canvas.style.gridTemplateRows = `repeat(${grid.rows}, ${cellH}px)`;
+  // auto-heightモードでは行高をautoに、それ以外は固定
+  if (fitMode === 'auto-height') {
+    canvas.style.gridTemplateRows = `repeat(${grid.rows}, auto)`;
+    canvas.classList.add('fit-auto-height');
+  } else {
+    canvas.style.gridTemplateRows = `repeat(${grid.rows}, ${cellH}px)`;
+    canvas.classList.remove('fit-auto-height');
+  }
   canvas.style.gap = grid.gap + 'px';
   canvas.style.transform = `scale(${zoomLevel})`;
   canvas.style.transformOrigin = 'top left';
@@ -1183,6 +1383,8 @@ function renderGrid() {
     if (imgItem) {
       const img = document.createElement('img');
       img.src = imgItem.dataUrl;
+      // fitModeをセルに反映
+      if (fitMode === 'contain') cell.classList.add('fit-contain');
       cell.appendChild(img);
 
       const badge = document.createElement('div');
@@ -1241,8 +1443,6 @@ function renderGrid() {
   updateInfo();
 }
 
-let draggingCell = null;
-
 function updateInfo() {
   const total = grid.cols * grid.rows;
   const filled = cells.filter(c => c !== null).length;
@@ -1253,18 +1453,52 @@ function updateInfo() {
 }
 
 // ===== AUTO FILL =====
+// ===== AUTO FILL =====
 function autoFill() {
   if (library.length === 0) { showToast('先にライブラリへ画像を追加してください'); return; }
-  let libIdx = 0;
-  cells = cells.map(c => {
-    if (c !== null) return c;
-    if (libIdx < library.length) return library[libIdx++].id;
-    return null;
-  });
+
+  const n = library.length;
+
+  // セル比率から「見た目の縦横比」が1に最も近い列数を全通り探索
+  // 例: 13枚, 4:6比率 → cols=3,rows=5(15マス) or cols=4,rows=4(16マス) を比較
+  let bestCols = 1, bestRows = n, bestScore = Infinity;
+  for (let c = 1; c <= n; c++) {
+    const r = Math.ceil(n / c); // n枚全て入る最小行数
+    // セル比率を考慮した画面上の見た目サイズ比率
+    const displayW = c * grid.ratioW;
+    const displayH = r * grid.ratioH;
+    const ratio = displayW / displayH;
+    // 目標: 縦長より横長気味(0.8〜1.2)で最も1.0に近いものを選ぶ
+    const score = Math.abs(ratio - 1.0);
+    if (score < bestScore) {
+      bestScore = score;
+      bestCols = c;
+      bestRows = r;
+    }
+  }
+
+  const cols = bestCols;
+  const rows = bestRows;
+  const total = cols * rows; // >= n が保証される
+
+  // グリッド設定を更新
+  grid.cols = cols;
+  grid.rows = rows;
+  document.getElementById('col-display').textContent = cols;
+  document.getElementById('row-display').textContent = rows;
+
+  // cells を total サイズで初期化し、先頭 n 個に画像を配置、残りは null（空白）
+  cells = Array(total).fill(null);
+  for (let i = 0; i < n; i++) {
+    cells[i] = library[i].id;
+  }
+
   renderGrid();
   updateInfo();
-  showToast('自動配置しました');
+  const blank = total - n;
+  showToast(`${n}枚を ${cols}列×${rows}行 に配置${blank > 0 ? `（空き${blank}マス）` : ''}`);
 }
+window.autoFill = autoFill;
 
 // ===== CLEAR =====
 function clearGrid() {
@@ -1273,6 +1507,7 @@ function clearGrid() {
   updateInfo();
   showToast('グリッドをクリアしました');
 }
+window.clearGrid = clearGrid;
 
 // ===== ZOOM =====
 function zoom(delta) {
@@ -1280,27 +1515,58 @@ function zoom(delta) {
   document.getElementById('zoom-display').textContent = Math.round(zoomLevel * 100) + '%';
   renderGrid();
 }
+window.zoom = zoom;
 
 function zoomFit() {
   zoomLevel = 1.0;
   document.getElementById('zoom-display').textContent = '100%';
   renderGrid();
 }
+window.zoomFit = zoomFit;
 
 // ===== EXPORT / PREVIEW MODAL =====
-
-// デバイス判定
 function isMobile() {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
 async function buildGridCanvas() {
-  // 高解像度で出力（セルサイズを固定値にしてスクリーン依存をなくす）
   const BASE_CELL_W = 400;
   const cellW = BASE_CELL_W;
-  const cellH = Math.round(cellW * (grid.ratioH / grid.ratioW));
+  const baseCellH = Math.round(cellW * (grid.ratioH / grid.ratioW));
+
+  // auto-heightモード: 各列の最大アスペクトに合わせて行ごとの高さを計算
+  // contain/coverモード: 全行同じ高さ
+  let rowHeights = Array(grid.rows).fill(baseCellH);
+
+  if (fitMode === 'auto-height') {
+    // 各行の画像を読み込んで最大高さを求める
+    const imgCache = {};
+    for (let i = 0; i < cells.length; i++) {
+      if (!cells[i]) continue;
+      const item = library.find(l => l.id === cells[i]);
+      if (!item) continue;
+      if (!imgCache[cells[i]]) {
+        const img = new Image();
+        await new Promise(r => { img.onload = r; img.src = item.dataUrl; });
+        imgCache[cells[i]] = img;
+      }
+    }
+    for (let row = 0; row < grid.rows; row++) {
+      let maxH = 0;
+      for (let col = 0; col < grid.cols; col++) {
+        const idx = row * grid.cols + col;
+        if (!cells[idx]) continue;
+        const img = imgCache[cells[idx]];
+        if (!img) continue;
+        const h = Math.round(cellW * img.naturalHeight / img.naturalWidth);
+        if (h > maxH) maxH = h;
+      }
+      rowHeights[row] = maxH > 0 ? maxH : baseCellH;
+    }
+  }
+
   const totalW = cellW * grid.cols + grid.gap * (grid.cols - 1);
-  const totalH = cellH * grid.rows + grid.gap * (grid.rows - 1);
+  const totalH = rowHeights.reduce((s, h) => s + h, 0) + grid.gap * (grid.rows - 1);
 
   const canvas = document.createElement('canvas');
   canvas.width = totalW;
@@ -1310,32 +1576,60 @@ async function buildGridCanvas() {
   ctx.fillStyle = '#111111';
   ctx.fillRect(0, 0, totalW, totalH);
 
+  // 行のY座標を事前計算
+  const rowY = [];
+  let yAcc = 0;
+  for (let r = 0; r < grid.rows; r++) {
+    rowY[r] = yAcc;
+    yAcc += rowHeights[r] + grid.gap;
+  }
+
   for (let i = 0; i < cells.length; i++) {
     const col = i % grid.cols;
     const row = Math.floor(i / grid.cols);
     const x = col * (cellW + grid.gap);
-    const y = row * (cellH + grid.gap);
+    const y = rowY[row];
+    const cH = rowHeights[row];
 
     if (cells[i]) {
       const item = library.find(l => l.id === cells[i]);
       if (item) {
         const img = new Image();
         await new Promise(r => { img.onload = r; img.src = item.dataUrl; });
-        const iR = img.naturalWidth / img.naturalHeight;
-        const cR = cellW / cellH;
-        let sw, sh, sx, sy;
-        if (iR > cR) {
-          sh = img.naturalHeight; sw = sh * cR;
-          sx = (img.naturalWidth - sw) / 2; sy = 0;
+
+        if (fitMode === 'contain' || fitMode === 'auto-height') {
+          // contain: セル内にfitさせて余白は背景色
+          const iR = img.naturalWidth / img.naturalHeight;
+          const cR = cellW / cH;
+          let dw, dh, dx, dy;
+          if (iR > cR) {
+            dw = cellW; dh = Math.round(cellW / iR);
+            dx = x; dy = y + Math.round((cH - dh) / 2);
+          } else {
+            dh = cH; dw = Math.round(cH * iR);
+            dx = x + Math.round((cellW - dw) / 2); dy = y;
+          }
+          ctx.fillStyle = '#0a0909';
+          ctx.fillRect(x, y, cellW, cH);
+          ctx.drawImage(img, dx, dy, dw, dh);
         } else {
-          sw = img.naturalWidth; sh = sw / cR;
-          sx = 0; sy = (img.naturalHeight - sh) / 2;
+          // cover: トリミング
+          const iR = img.naturalWidth / img.naturalHeight;
+          const cR = cellW / cH;
+          let sw, sh, sx, sy;
+          if (iR > cR) {
+            sh = img.naturalHeight; sw = sh * cR;
+            sx = (img.naturalWidth - sw) / 2; sy = 0;
+          } else {
+            sw = img.naturalWidth; sh = sw / cR;
+            sx = 0; sy = (img.naturalHeight - sh) / 2;
+          }
+          ctx.drawImage(img, sx, sy, sw, sh, x, y, cellW, cH);
         }
-        ctx.drawImage(img, sx, sy, sw, sh, x, y, cellW, cellH);
       }
     } else {
       ctx.fillStyle = '#1a1917';
-      ctx.fillRect(x, y, cellW, cellH);
+      ctx.fillRect(x, y, cellW, cH);
     }
   }
   return canvas;
@@ -1350,23 +1644,18 @@ async function exportGrid() {
   const canvas = await buildGridCanvas();
   const dataUrl = canvas.toDataURL('image/png');
 
-  // プレビューモーダルへ表示
   document.getElementById('preview-img').src = dataUrl;
 
-  // ファイル名入力の初期値
   const ts = new Date();
   const defaultName = `gridcut_${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}`;
   document.getElementById('filename-input').value = defaultName;
 
-  // 保存リンク更新
   updateSaveLink(dataUrl, defaultName);
 
-  // ファイル名変更時にリンクも更新
   document.getElementById('filename-input').oninput = e => {
     updateSaveLink(dataUrl, e.target.value || 'gridcut');
   };
 
-  // ヒント文言
   const hint = document.getElementById('save-hint');
   if (isMobile()) {
     hint.innerHTML = `📱 <strong>スマホ</strong>：画像を長押し → 「写真に保存」<br>または下の「💾 保存」ボタン`;
@@ -1376,6 +1665,7 @@ async function exportGrid() {
 
   document.getElementById('preview-modal').classList.add('open');
 }
+window.exportGrid = exportGrid;
 
 function updateSaveLink(dataUrl, name) {
   const link = document.getElementById('save-link');
@@ -1386,10 +1676,12 @@ function updateSaveLink(dataUrl, name) {
 function closePreview() {
   document.getElementById('preview-modal').classList.remove('open');
 }
+window.closePreview = closePreview;
 
 function closePreviewOnBg(e) {
   if (e.target === document.getElementById('preview-modal')) closePreview();
 }
+window.closePreviewOnBg = closePreviewOnBg;
 
 // ===== TOAST =====
 function showToast(msg) {
@@ -1401,6 +1693,8 @@ function showToast(msg) {
 
 // Init render
 renderGrid();
+
+}); // DOMContentLoaded
 </script>
 </body>
 </html>
