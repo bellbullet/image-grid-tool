@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridCut — 画像グリッド配置ツール</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Zen+Kaku+Gothic+New:wght@300;400;700&display=swap');
+
+  :root {
+    --bg: #0f0e0d;
+    --surface: #1a1917;
+    --surface2: #232220;
+    --border: #2e2c2a;
+    --accent: #c8a96e;
+    --accent2: #7eb8a4;
+    --text: #e8e4df;
+    --muted: #6b6560;
+    --danger: #c86e6e;
+    --grid-gap: 4px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+  }
+
+  .logo span { color: var(--muted); }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 57px);
+  }
+
+  /* ===== LEFT PANEL ===== */
+  .panel-left {
+    width: 300px;
+    min-width: 300px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .panel-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 14px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 7px 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    border-radius: 3px;
+  }
+
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f0e0d;
+    font-weight: 700;
+  }
+
+  /* Drop Zone */
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(200,169,110,0.05);
+  }
+
+  .dropzone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+
+  .dropzone-icon {
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    opacity: 0.5;
+  }
+
+  .dropzone-text {
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* Slice Controls */
+  .slice-controls { display: none; }
+  .slice-controls.active { display: block; }
+
+  .slice-preview-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--surface2);
+    cursor: crosshair;
+    user-select: none;
+  }
+
+  .slice-preview-wrap img {
+    width: 100%;
+    display: block;
+  }
+
+  .slice-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    cursor: row-resize;
+    z-index: 10;
+  }
+
+  .slice-line::after {
+    content: attr(data-idx);
+    position: absolute;
+    right: 4px;
+    top: -9px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--accent);
+    background: var(--bg);
+    padding: 0 3px;
+  }
+
+  .slice-line .del-btn {
+    position: absolute;
+    left: 4px;
+    top: -8px;
+    width: 16px; height: 16px;
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.55rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .slice-add-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* Thumbnail strip */
+  .thumb-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .thumb-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px;
+    cursor: grab;
+    transition: border-color 0.15s;
+  }
+
+  .thumb-item:hover { border-color: var(--accent2); }
+  .thumb-item.dragging { opacity: 0.4; }
+
+  .thumb-item img {
+    width: 40px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .thumb-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .thumb-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .thumb-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .thumb-del:hover { color: var(--danger); }
+
+  /* Grid Settings */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .setting-label {
+    font-size: 0.78rem;
+    color: var(--text);
+  }
+
+  .setting-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-small {
+    width: 26px; height: 26px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .btn-small:hover { border-color: var(--accent); color: var(--accent); }
+
+  .num-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    min-width: 24px;
+    text-align: center;
+    color: var(--accent);
+  }
+
+  .ratio-btns {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .ratio-btn {
+    padding: 4px 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .ratio-btn.active, .ratio-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(200,169,110,0.08);
+  }
+
+  .gap-slider {
+    -webkit-appearance: none;
+    width: 80px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .gap-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* Action Buttons */
+  .btn-primary {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: #0f0e0d;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    margin-bottom: 6px;
+  }
+
+  .btn-primary:hover { opacity: 0.85; }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 9px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    margin-bottom: 6px;
+  }
+
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ===== CENTER CANVAS ===== */
+  .panel-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .canvas-toolbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .canvas-info {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .canvas-info strong {
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .ml-auto { margin-left: auto; }
+
+  .grid-area {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .grid-canvas {
+    display: grid;
+    gap: var(--grid-gap);
+    background: #111;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  .grid-cell {
+    background: var(--surface2);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: outline 0.1s;
+    min-width: 60px;
+    min-height: 60px;
+  }
+
+  .grid-cell.drop-target { outline: 2px solid var(--accent2); }
+  .grid-cell.selected { outline: 2px solid var(--accent); }
+
+  .grid-cell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+  }
+
+  .cell-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--border);
+    letter-spacing: 0.1em;
+  }
+
+  .cell-badge {
+    position: absolute;
+    top: 4px; left: 4px;
+    background: rgba(15,14,13,0.8);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+    color: var(--accent);
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  .cell-remove {
+    position: absolute;
+    top: 4px; right: 4px;
+    background: rgba(200,110,110,0.85);
+    border: none;
+    color: #fff;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.6rem;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .grid-cell:hover .cell-remove { display: flex; }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    gap: 12px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .empty-icon { font-size: 3rem; opacity: 0.3; }
+  .empty-text { font-size: 0.85rem; line-height: 1.7; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px; right: 20px;
+    background: var(--surface);
+    border: 1px solid var(--accent2);
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s;
+    pointer-events: none;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ===== PREVIEW MODAL ===== */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open {
+    opacity: 1; pointer-events: all;
+  }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 92vw;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    transform: scale(0.96);
+    transition: transform 0.2s;
+  }
+  .modal-overlay.open .modal-box {
+    transform: scale(1);
+  }
+  .modal-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .modal-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+  }
+  .modal-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  .modal-close:hover { color: var(--danger); }
+  .modal-img-wrap {
+    overflow: auto;
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 16px;
+    background: #0a0909;
+  }
+  .modal-img-wrap img {
+    max-width: 100%;
+    border-radius: 4px;
+    display: block;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  }
+  .modal-footer {
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .modal-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+  .modal-hint strong { color: var(--accent2); }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .modal-btn-save {
+    flex: 1;
+    padding: 11px;
+    background: var(--accent2);
+    color: #0f0e0d;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: opacity 0.15s;
+  }
+  .modal-btn-save:hover { opacity: 0.85; }
+  .modal-btn-cancel {
+    padding: 11px 16px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .modal-btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+
+  .filename-input {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .filename-input:focus { border-color: var(--accent); }
+  .filename-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .filename-ext {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* Slice tab confirm button */
+  .btn-accent-sm {
+    padding: 6px 12px;
+    background: var(--accent2);
+    color: #0f0e0d;
+    border: none;
+    border-radius: 3px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+  }
+  .btn-accent-sm:hover { opacity: 0.85; }
+
+  .badge-count {
+    background: var(--accent);
+    color: #0f0e0d;
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">GRID<span>/</span>CUT</div>
+  <div style="font-size:0.75rem; color:var(--muted);">画像グリッド配置ツール</div>
+</header>
+
+<div class="main">
+  <!-- LEFT PANEL -->
+  <div class="panel-left">
+
+    <!-- Source Tabs -->
+    <div class="panel-section">
+      <div class="panel-label">ソース選択</div>
+      <div class="tabs">
+        <div class="tab active" id="tab-slice" onclick="switchTab('slice')">1枚をカット</div>
+        <div class="tab" id="tab-multi" onclick="switchTab('multi')">複数枚追加</div>
+      </div>
+
+      <!-- SLICE TAB -->
+      <div id="pane-slice">
+        <div class="dropzone" id="dz-slice">
+          <input type="file" accept="image/*" onchange="loadSliceImage(this)">
+          <div class="dropzone-icon">🖼</div>
+          <div class="dropzone-text">縦長画像をドロップ<br>またはクリックして選択</div>
+        </div>
+
+        <div class="slice-controls" id="slice-controls" style="margin-top:12px;">
+          <div class="panel-label" style="margin-bottom:8px;">クリックで分割線を追加</div>
+          <div class="slice-preview-wrap" id="slice-wrap">
+            <img id="slice-img" src="" alt="">
+          </div>
+          <div class="slice-add-hint">↑ 画像をクリックして分割線を追加</div>
+          <button class="btn-accent-sm" onclick="applySlices()">✂ カットしてライブラリへ追加</button>
+        </div>
+      </div>
+
+      <!-- MULTI TAB -->
+      <div id="pane-multi" style="display:none;">
+        <div class="dropzone" id="dz-multi">
+          <input type="file" accept="image/*" multiple onchange="loadMultiImages(this)">
+          <div class="dropzone-icon">📁</div>
+          <div class="dropzone-text">複数枚を一括選択<br>またはここへドロップ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Library -->
+    <div class="panel-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+      <div class="panel-label">
+        ライブラリ
+        <span class="badge-count" id="lib-count">0</span>
+      </div>
+      <div class="thumb-list" id="thumb-list">
+        <div style="font-size:0.75rem; color:var(--muted); text-align:center; padding:12px;">
+          画像を追加してください
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid Settings -->
+    <div class="panel-section">
+      <div class="panel-label">グリッド設定</div>
+
+      <div class="setting-row">
+        <div class="setting-label">列数</div>
+        <div class="setting-control">
+          <button class="btn-small" onclick="adjCols(-1)">−</button>
+          <div class="num-display" id="col-display">3</div>
+          <button class="btn-small" onclick="adjCols(1)">＋</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">行数</div>
+        <div class="setting-control">
+          <button class="btn-small" onclick="adjRows(-1)">−</button>
+          <div class="num-display" id="row-display">4</div>
+          <button class="btn-small" onclick="adjRows(1)">＋</button>
+        </div>
+      </div>
+
+      <div class="setting-row" style="margin-bottom:6px;">
+        <div class="setting-label">セル比率</div>
+      </div>
+      <div class="ratio-btns" id="ratio-btns">
+        <button class="ratio-btn active" onclick="setRatio(4,6,this)">4:6</button>
+        <button class="ratio-btn" onclick="setRatio(1,1,this)">1:1</button>
+        <button class="ratio-btn" onclick="setRatio(16,9,this)">16:9</button>
+        <button class="ratio-btn" onclick="setRatio(9,16,this)">9:16</button>
+        <button class="ratio-btn" onclick="setRatio(3,4,this)">3:4</button>
+      </div>
+
+      <div class="setting-row" style="margin-top:10px;">
+        <div class="setting-label">ギャップ <span class="num-display" id="gap-display" style="font-size:0.75rem;">4</span>px</div>
+        <input type="range" class="gap-slider" min="0" max="20" value="4" oninput="setGap(this.value)">
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel-section">
+      <button class="btn-primary" onclick="autoFill()">⚡ 自動配置</button>
+      <button class="btn-secondary" onclick="clearGrid()">🗑 グリッドをクリア</button>
+      <button class="btn-primary" style="background:var(--accent2);" onclick="exportGrid()">💾 画像として保存</button>
+    </div>
+
+  </div>
+
+  <!-- CENTER CANVAS -->
+  <div class="panel-center">
+    <div class="canvas-toolbar">
+      <div class="canvas-info">
+        グリッド: <strong id="info-cols">3</strong>列 × <strong id="info-rows">4</strong>行
+        &nbsp;|&nbsp;
+        配置済み: <strong id="info-filled">0</strong> / <strong id="info-total">12</strong>
+      </div>
+      <div class="ml-auto" style="display:flex; gap:8px;">
+        <button class="btn-small" title="ズームアウト" onclick="zoom(-0.1)">−</button>
+        <div class="num-display" id="zoom-display" style="font-size:0.7rem; min-width:36px;">100%</div>
+        <button class="btn-small" title="ズームイン" onclick="zoom(0.1)">＋</button>
+        <button class="btn-small" title="フィット" onclick="zoomFit()">⊡</button>
+      </div>
+    </div>
+
+    <div class="grid-area" id="grid-area">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">🎨</div>
+        <div class="empty-text">左パネルから画像を追加して<br>グリッドを設定してください</div>
+      </div>
+      <div class="grid-canvas" id="grid-canvas" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PREVIEW MODAL ===== -->
+<div class="modal-overlay" id="preview-modal" onclick="closePreviewOnBg(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">PREVIEW — 保存確認</div>
+      <button class="modal-close" onclick="closePreview()">×</button>
+    </div>
+    <div class="modal-img-wrap">
+      <img id="preview-img" src="" alt="プレビュー">
+    </div>
+    <div class="modal-footer">
+      <div class="modal-hint" id="save-hint"></div>
+      <div class="filename-row">
+        <input type="text" class="filename-input" id="filename-input" value="gridcut" placeholder="ファイル名">
+        <span class="filename-ext">.png</span>
+      </div>
+      <div class="modal-actions">
+        <a class="modal-btn-save" id="save-link" download="gridcut.png" href="#">💾 保存</a>
+        <button class="modal-btn-cancel" onclick="closePreview()">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== STATE =====
+let library = []; // {id, name, dataUrl, thumb}
+let grid = { cols: 3, rows: 4, ratioW: 4, ratioH: 6, gap: 4 };
+let cells = []; // array of {imgId or null}
+let zoomLevel = 1.0;
+
+let sliceLines = []; // y percentages 0-100
+let sliceImg = null;
+let draggingThumb = null;
+let dragOverCell = null;
+
+// ===== INIT =====
+initGrid();
+
+function initGrid() {
+  const total = grid.cols * grid.rows;
+  cells = Array(total).fill(null);
+  renderGrid();
+  updateInfo();
+}
+
+// ===== TAB SWITCH =====
+function switchTab(tab) {
+  document.getElementById('tab-slice').classList.toggle('active', tab === 'slice');
+  document.getElementById('tab-multi').classList.toggle('active', tab === 'multi');
+  document.getElementById('pane-slice').style.display = tab === 'slice' ? '' : 'none';
+  document.getElementById('pane-multi').style.display = tab === 'multi' ? '' : 'none';
+}
+
+// ===== SLICE TAB =====
+function loadSliceImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('slice-img');
+    img.src = e.target.result;
+    sliceImg = { name: file.name, dataUrl: e.target.result };
+    sliceLines = [];
+    document.getElementById('slice-controls').classList.add('active');
+    renderSliceLines();
+  };
+  reader.readAsDataURL(file);
+}
+
+const sliceWrap = document.getElementById('slice-wrap');
+sliceWrap.addEventListener('click', e => {
+  if (e.target.classList.contains('slice-line') || e.target.classList.contains('del-btn')) return;
+  const rect = sliceWrap.getBoundingClientRect();
+  const pct = ((e.clientY - rect.top) / rect.height) * 100;
+  sliceLines.push(Math.round(pct * 10) / 10);
+  sliceLines.sort((a, b) => a - b);
+  renderSliceLines();
+});
+
+function renderSliceLines() {
+  // remove existing lines
+  sliceWrap.querySelectorAll('.slice-line').forEach(el => el.remove());
+  sliceLines.forEach((pct, i) => {
+    const line = document.createElement('div');
+    line.className = 'slice-line';
+    line.style.top = pct + '%';
+    line.setAttribute('data-idx', `cut ${i+1}`);
+
+    const del = document.createElement('button');
+    del.className = 'del-btn';
+    del.textContent = '×';
+    del.onclick = e => {
+      e.stopPropagation();
+      sliceLines.splice(i, 1);
+      renderSliceLines();
+    };
+    line.appendChild(del);
+
+    // drag to move
+    let startY, startPct;
+    line.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      startY = e.clientY;
+      startPct = sliceLines[i];
+      const onMove = ev => {
+        const rect = sliceWrap.getBoundingClientRect();
+        const delta = ((ev.clientY - startY) / rect.height) * 100;
+        sliceLines[i] = Math.max(0, Math.min(100, startPct + delta));
+        sliceLines.sort((a, b) => a - b);
+        renderSliceLines();
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    sliceWrap.appendChild(line);
+  });
+}
+
+async function applySlices() {
+  if (!sliceImg) return;
+  const img = new Image();
+  img.src = sliceImg.dataUrl;
+  await new Promise(r => { img.onload = r; });
+
+  const cuts = [0, ...sliceLines.map(p => (p / 100) * img.height), img.height];
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const y0 = cuts[i], y1 = cuts[i + 1];
+    const h = Math.round(y1 - y0);
+    if (h < 2) continue;
+    canvas.width = img.width;
+    canvas.height = h;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, -y0);
+    const dataUrl = canvas.toDataURL('image/png');
+    addToLibrary(`${sliceImg.name}_cut${i+1}`, dataUrl);
+  }
+
+  showToast(`${cuts.length - 1}枚のカットをライブラリへ追加しました`);
+}
+
+// ===== MULTI TAB =====
+function loadMultiImages(input) {
+  const files = Array.from(input.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => addToLibrary(file.name, e.target.result);
+    reader.readAsDataURL(file);
+  });
+  showToast(`${files.length}枚を追加しました`);
+}
+
+// Drag and drop for multi tab
+const dzMulti = document.getElementById('dz-multi');
+dzMulti.addEventListener('dragover', e => { e.preventDefault(); dzMulti.classList.add('drag-over'); });
+dzMulti.addEventListener('dragleave', () => dzMulti.classList.remove('drag-over'));
+dzMulti.addEventListener('drop', e => {
+  e.preventDefault();
+  dzMulti.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => addToLibrary(file.name, ev.target.result);
+    reader.readAsDataURL(file);
+  });
+});
+
+const dzSlice = document.getElementById('dz-slice');
+dzSlice.addEventListener('dragover', e => { e.preventDefault(); dzSlice.classList.add('drag-over'); });
+dzSlice.addEventListener('dragleave', () => dzSlice.classList.remove('drag-over'));
+dzSlice.addEventListener('drop', e => {
+  e.preventDefault();
+  dzSlice.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.getElementById('slice-img');
+      img.src = ev.target.result;
+      sliceImg = { name: file.name, dataUrl: ev.target.result };
+      sliceLines = [];
+      document.getElementById('slice-controls').classList.add('active');
+      renderSliceLines();
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+// ===== LIBRARY =====
+let libIdCounter = 0;
+
+function addToLibrary(name, dataUrl) {
+  const id = ++libIdCounter;
+  library.push({ id, name, dataUrl });
+  renderLibrary();
+}
+
+function renderLibrary() {
+  const list = document.getElementById('thumb-list');
+  document.getElementById('lib-count').textContent = library.length;
+
+  if (library.length === 0) {
+    list.innerHTML = '<div style="font-size:0.75rem; color:var(--muted); text-align:center; padding:12px;">画像を追加してください</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  library.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'thumb-item';
+    el.draggable = true;
+    el.dataset.id = item.id;
+    el.innerHTML = `
+      <img src="${item.dataUrl}" alt="">
+      <div class="thumb-info">
+        <div class="thumb-name">${item.name}</div>
+      </div>
+      <button class="thumb-del" onclick="removeFromLibrary(${item.id})" title="削除">×</button>
+    `;
+
+    el.addEventListener('dragstart', e => {
+      draggingThumb = item.id;
+      e.dataTransfer.effectAllowed = 'copy';
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      draggingThumb = null;
+    });
+
+    // click to place in first empty cell
+    el.addEventListener('click', () => placeInFirstEmpty(item.id));
+
+    list.appendChild(el);
+  });
+}
+
+function removeFromLibrary(id) {
+  library = library.filter(l => l.id !== id);
+  // clear from cells
+  cells = cells.map(c => c === id ? null : c);
+  renderLibrary();
+  renderGrid();
+  updateInfo();
+}
+
+function placeInFirstEmpty(imgId) {
+  const idx = cells.indexOf(null);
+  if (idx === -1) { showToast('空きセルがありません'); return; }
+  cells[idx] = imgId;
+  renderGrid();
+  updateInfo();
+}
+
+// ===== GRID SETTINGS =====
+function adjCols(d) {
+  grid.cols = Math.max(1, Math.min(10, grid.cols + d));
+  document.getElementById('col-display').textContent = grid.cols;
+  document.getElementById('info-cols').textContent = grid.cols;
+  resizeCells();
+}
+
+function adjRows(d) {
+  grid.rows = Math.max(1, Math.min(20, grid.rows + d));
+  document.getElementById('row-display').textContent = grid.rows;
+  document.getElementById('info-rows').textContent = grid.rows;
+  resizeCells();
+}
+
+function resizeCells() {
+  const total = grid.cols * grid.rows;
+  if (cells.length < total) {
+    cells = [...cells, ...Array(total - cells.length).fill(null)];
+  } else {
+    cells = cells.slice(0, total);
+  }
+  renderGrid();
+  updateInfo();
+}
+
+function setRatio(w, h, btn) {
+  grid.ratioW = w; grid.ratioH = h;
+  document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
+function setGap(v) {
+  grid.gap = parseInt(v);
+  document.getElementById('gap-display').textContent = v;
+  document.documentElement.style.setProperty('--grid-gap', v + 'px');
+  renderGrid();
+}
+
+// ===== RENDER GRID =====
+function renderGrid() {
+  const canvas = document.getElementById('grid-canvas');
+  const emptyState = document.getElementById('empty-state');
+
+  const total = grid.cols * grid.rows;
+  if (cells.length !== total) {
+    cells = Array(total).fill(null).map((_, i) => cells[i] || null);
+  }
+
+  canvas.style.display = 'grid';
+  emptyState.style.display = 'none';
+
+  // Cell size based on available area and ratio
+  const availW = Math.min(800, document.getElementById('grid-area').clientWidth - 48);
+  const cellW = Math.floor((availW - grid.gap * (grid.cols - 1)) / grid.cols);
+  const cellH = Math.round(cellW * (grid.ratioH / grid.ratioW));
+
+  canvas.style.gridTemplateColumns = `repeat(${grid.cols}, ${cellW}px)`;
+  canvas.style.gridTemplateRows = `repeat(${grid.rows}, ${cellH}px)`;
+  canvas.style.gap = grid.gap + 'px';
+  canvas.style.transform = `scale(${zoomLevel})`;
+  canvas.style.transformOrigin = 'top left';
+
+  canvas.innerHTML = '';
+
+  cells.forEach((imgId, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    cell.dataset.idx = idx;
+
+    const imgItem = imgId ? library.find(l => l.id === imgId) : null;
+
+    if (imgItem) {
+      const img = document.createElement('img');
+      img.src = imgItem.dataUrl;
+      cell.appendChild(img);
+
+      const badge = document.createElement('div');
+      badge.className = 'cell-badge';
+      badge.textContent = idx + 1;
+      cell.appendChild(badge);
+
+      const rm = document.createElement('button');
+      rm.className = 'cell-remove';
+      rm.textContent = '×';
+      rm.onclick = e => { e.stopPropagation(); cells[idx] = null; renderGrid(); updateInfo(); };
+      cell.appendChild(rm);
+    } else {
+      const emp = document.createElement('div');
+      emp.className = 'cell-empty';
+      emp.textContent = (idx + 1).toString().padStart(2, '0');
+      cell.appendChild(emp);
+    }
+
+    // Drop from library
+    cell.addEventListener('dragover', e => {
+      e.preventDefault();
+      cell.classList.add('drop-target');
+    });
+    cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+    cell.addEventListener('drop', e => {
+      e.preventDefault();
+      cell.classList.remove('drop-target');
+      if (draggingThumb) {
+        cells[idx] = draggingThumb;
+        renderGrid();
+        updateInfo();
+      } else if (draggingCell !== null && draggingCell !== idx) {
+        // swap
+        [cells[draggingCell], cells[idx]] = [cells[idx], cells[draggingCell]];
+        draggingCell = null;
+        renderGrid();
+        updateInfo();
+      }
+    });
+
+    // Drag cell to reorder
+    cell.draggable = true;
+    cell.addEventListener('dragstart', e => {
+      if (imgId) {
+        draggingCell = idx;
+        e.dataTransfer.effectAllowed = 'move';
+      } else {
+        e.preventDefault();
+      }
+    });
+
+    canvas.appendChild(cell);
+  });
+
+  updateInfo();
+}
+
+let draggingCell = null;
+
+function updateInfo() {
+  const total = grid.cols * grid.rows;
+  const filled = cells.filter(c => c !== null).length;
+  document.getElementById('info-cols').textContent = grid.cols;
+  document.getElementById('info-rows').textContent = grid.rows;
+  document.getElementById('info-filled').textContent = filled;
+  document.getElementById('info-total').textContent = total;
+}
+
+// ===== AUTO FILL =====
+function autoFill() {
+  if (library.length === 0) { showToast('先にライブラリへ画像を追加してください'); return; }
+  let libIdx = 0;
+  cells = cells.map(c => {
+    if (c !== null) return c;
+    if (libIdx < library.length) return library[libIdx++].id;
+    return null;
+  });
+  renderGrid();
+  updateInfo();
+  showToast('自動配置しました');
+}
+
+// ===== CLEAR =====
+function clearGrid() {
+  cells = Array(grid.cols * grid.rows).fill(null);
+  renderGrid();
+  updateInfo();
+  showToast('グリッドをクリアしました');
+}
+
+// ===== ZOOM =====
+function zoom(delta) {
+  zoomLevel = Math.max(0.3, Math.min(2.5, zoomLevel + delta));
+  document.getElementById('zoom-display').textContent = Math.round(zoomLevel * 100) + '%';
+  renderGrid();
+}
+
+function zoomFit() {
+  zoomLevel = 1.0;
+  document.getElementById('zoom-display').textContent = '100%';
+  renderGrid();
+}
+
+// ===== EXPORT / PREVIEW MODAL =====
+
+// デバイス判定
+function isMobile() {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
+async function buildGridCanvas() {
+  // 高解像度で出力（セルサイズを固定値にしてスクリーン依存をなくす）
+  const BASE_CELL_W = 400;
+  const cellW = BASE_CELL_W;
+  const cellH = Math.round(cellW * (grid.ratioH / grid.ratioW));
+  const totalW = cellW * grid.cols + grid.gap * (grid.cols - 1);
+  const totalH = cellH * grid.rows + grid.gap * (grid.rows - 1);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = totalW;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(0, 0, totalW, totalH);
+
+  for (let i = 0; i < cells.length; i++) {
+    const col = i % grid.cols;
+    const row = Math.floor(i / grid.cols);
+    const x = col * (cellW + grid.gap);
+    const y = row * (cellH + grid.gap);
+
+    if (cells[i]) {
+      const item = library.find(l => l.id === cells[i]);
+      if (item) {
+        const img = new Image();
+        await new Promise(r => { img.onload = r; img.src = item.dataUrl; });
+        const iR = img.naturalWidth / img.naturalHeight;
+        const cR = cellW / cellH;
+        let sw, sh, sx, sy;
+        if (iR > cR) {
+          sh = img.naturalHeight; sw = sh * cR;
+          sx = (img.naturalWidth - sw) / 2; sy = 0;
+        } else {
+          sw = img.naturalWidth; sh = sw / cR;
+          sx = 0; sy = (img.naturalHeight - sh) / 2;
+        }
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, cellW, cellH);
+      }
+    } else {
+      ctx.fillStyle = '#1a1917';
+      ctx.fillRect(x, y, cellW, cellH);
+    }
+  }
+  return canvas;
+}
+
+async function exportGrid() {
+  const filled = cells.filter(c => c !== null).length;
+  if (filled === 0) { showToast('グリッドに画像を配置してください'); return; }
+
+  showToast('レンダリング中...');
+
+  const canvas = await buildGridCanvas();
+  const dataUrl = canvas.toDataURL('image/png');
+
+  // プレビューモーダルへ表示
+  document.getElementById('preview-img').src = dataUrl;
+
+  // ファイル名入力の初期値
+  const ts = new Date();
+  const defaultName = `gridcut_${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}`;
+  document.getElementById('filename-input').value = defaultName;
+
+  // 保存リンク更新
+  updateSaveLink(dataUrl, defaultName);
+
+  // ファイル名変更時にリンクも更新
+  document.getElementById('filename-input').oninput = e => {
+    updateSaveLink(dataUrl, e.target.value || 'gridcut');
+  };
+
+  // ヒント文言
+  const hint = document.getElementById('save-hint');
+  if (isMobile()) {
+    hint.innerHTML = `📱 <strong>スマホ</strong>：画像を長押し → 「写真に保存」<br>または下の「💾 保存」ボタン`;
+  } else {
+    hint.innerHTML = `🖥️ <strong>PC</strong>：「💾 保存」ボタンでダウンロード<br>または画像を右クリック → 「名前を付けて保存」`;
+  }
+
+  document.getElementById('preview-modal').classList.add('open');
+}
+
+function updateSaveLink(dataUrl, name) {
+  const link = document.getElementById('save-link');
+  link.href = dataUrl;
+  link.download = (name || 'gridcut').replace(/\.png$/i, '') + '.png';
+}
+
+function closePreview() {
+  document.getElementById('preview-modal').classList.remove('open');
+}
+
+function closePreviewOnBg(e) {
+  if (e.target === document.getElementById('preview-modal')) closePreview();
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Init render
+renderGrid();
+</script>
+</body>
+</html>
