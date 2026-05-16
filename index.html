@@ -734,6 +734,12 @@
   .modal-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .modal-actions .modal-btn-save {
+    flex: 1;
+    min-width: 100px;
   }
   .modal-btn-save {
     flex: 1;
@@ -991,7 +997,8 @@
         <span class="filename-ext">.png</span>
       </div>
       <div class="modal-actions">
-        <a class="modal-btn-save" id="save-link" download="gridcut.png" href="#">💾 保存</a>
+        <a class="modal-btn-save" id="save-link" download="gridcut.png" href="#">💾 PNG保存</a>
+        <button class="modal-btn-save" id="save-pdf-btn" onclick="savePDF()" style="background:var(--accent);">📄 PDF保存</button>
         <button class="modal-btn-cancel" onclick="closePreview()">閉じる</button>
       </div>
     </div>
@@ -1699,9 +1706,9 @@ async function exportGrid() {
 
   const hint = document.getElementById('save-hint');
   if (isMobile()) {
-    hint.innerHTML = `📱 <strong>スマホ</strong>：画像を長押し → 「写真に保存」<br>または下の「💾 保存」ボタン`;
+    hint.innerHTML = `📱 <strong>PNG</strong>：画像を長押し → 「写真に保存」または💾ボタン<br>📄 <strong>PDF</strong>：PDF保存 → 共有 → プリント → PDF`;
   } else {
-    hint.innerHTML = `🖥️ <strong>PC</strong>：「💾 保存」ボタンでダウンロード<br>または画像を右クリック → 「名前を付けて保存」`;
+    hint.innerHTML = `🖥️ <strong>PNG</strong>：💾ボタンでダウンロード / 右クリック → 名前を付けて保存<br>📄 <strong>PDF</strong>：PDF保存 → 印刷ダイアログ → PDFに保存`;
   }
 
   document.getElementById('preview-modal').classList.add('open');
@@ -1714,10 +1721,53 @@ function updateSaveLink(dataUrl, name) {
   link.download = (name || 'gridcut').replace(/\.png$/i, '') + '.png';
 }
 
-function closePreview() {
-  document.getElementById('preview-modal').classList.remove('open');
+function savePDF() {
+  const dataUrl = document.getElementById('preview-img').src;
+  if (!dataUrl || dataUrl === window.location.href) { showToast('先にプレビューを生成してください'); return; }
+
+  const name = (document.getElementById('filename-input').value || 'gridcut').replace(/\.pdf$/i, '');
+
+  // 画像を印刷用HTMLページとして新タブで開く
+  // Safari: 共有→プリント→PDFとして保存 / PC: 印刷→PDFに保存
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${name}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; }
+  img { width: 100%; height: auto; display: block; }
+  @media print {
+    body { margin: 0; }
+    img { width: 100%; height: 100vh; object-fit: contain; page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<img src="${dataUrl}">
+<script>
+  // 画像ロード後に印刷ダイアログを自動表示
+  document.querySelector('img').onload = () => {
+    setTimeout(() => window.print(), 300);
+  };
+<\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    // ポップアップブロック時のフォールバック
+    showToast('ポップアップを許可してから再度お試しください');
+    URL.revokeObjectURL(url);
+    return;
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  showToast('新タブで印刷ダイアログが開きます → PDF保存を選択');
 }
-window.closePreview = closePreview;
+window.savePDF = savePDF;
 
 function closePreviewOnBg(e) {
   if (e.target === document.getElementById('preview-modal')) closePreview();
