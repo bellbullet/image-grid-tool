@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GridCut — 画像グリッド配置ツール</title>
+
+<!-- CSS -->
+<link rel="stylesheet" href="./css/style.css">
+
+<!-- 外部ライブラリ -->
+<script src="./jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">GRID<span>/</span>CUT</div>
+  <div style="font-size:0.75rem; color:var(--muted);">画像グリッド配置ツール</div>
+</header>
+
+<div class="main">
+  <!-- LEFT PANEL -->
+  <div class="panel-left">
+
+    <!-- Source Tabs -->
+    <div class="panel-section fixed-section">
+      <div class="panel-label">ソース選択</div>
+      <div class="tabs">
+        <div class="tab active" id="tab-slice" onclick="switchTab('slice')">1枚をカット</div>
+        <div class="tab" id="tab-multi" onclick="switchTab('multi')">複数枚追加</div>
+      </div>
+
+      <!-- SLICE TAB -->
+      <div id="pane-slice">
+        <div class="dropzone" id="dz-slice">
+          <input type="file" accept="image/*" onchange="loadSliceImage(this)">
+          <div class="dropzone-icon">🖼</div>
+          <div class="dropzone-text">縦長画像をドロップ<br>またはクリックして選択</div>
+        </div>
+
+        <div class="slice-controls" id="slice-controls" style="margin-top:12px;">
+          <div class="panel-label" style="margin-bottom:8px;">クリックで分割線を追加</div>
+
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+            <span style="font-size:0.75rem; color:var(--text); white-space:nowrap;">自動分割</span>
+            <button class="btn-small" onclick="adjAutoN(-1)">−</button>
+            <div class="num-display" id="auto-n-display">4</div>
+            <button class="btn-small" onclick="adjAutoN(1)">＋</button>
+            <span style="font-size:0.72rem; color:var(--muted);">等分</span>
+            <button onclick="applyAutoSlice()" style="flex:1; padding:5px 8px; background:var(--accent); color:#0f0e0d; border:none; border-radius:3px; font-size:0.72rem; font-weight:700; cursor:pointer; white-space:nowrap;">⚡ 適用</button>
+          </div>
+
+          <div class="slice-preview-wrap" id="slice-wrap">
+            <img id="slice-img" src="" alt="">
+          </div>
+          <div class="slice-add-hint">↑ 画像をタップ/クリックで分割線追加・ドラッグで微調整</div>
+          <button class="btn-accent-sm" onclick="applySlices()">✂ カットしてライブラリへ追加</button>
+        </div>
+      </div>
+
+      <!-- MULTI TAB -->
+      <div id="pane-multi" style="display:none;">
+        <div class="dropzone" id="dz-multi">
+          <input type="file" accept="image/*" multiple onchange="loadMultiImages(this)">
+          <div class="dropzone-icon">📁</div>
+          <div class="dropzone-text">複数枚を一括選択<br>またはここへドロップ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Library -->
+    <div class="lib-section">
+      <div class="lib-section-header">
+        <span class="lib-title">ライブラリ <span class="badge-count" id="lib-count">0</span></span>
+        <button class="btn-clear-lib" onclick="clearLibrary()">全削除</button>
+      </div>
+      <div class="thumb-list" id="thumb-list">
+        <div style="font-size:0.75rem; color:var(--muted); text-align:center; padding:12px;">
+          画像を追加してください
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid Settings -->
+    <div class="panel-section fixed-section">
+      <div class="panel-label">グリッド設定</div>
+
+      <div class="setting-row">
+        <div class="setting-label">列数</div>
+        <div class="setting-control">
+          <button class="btn-small" onclick="adjCols(-1)">−</button>
+          <div class="num-display" id="col-display">3</div>
+          <button class="btn-small" onclick="adjCols(1)">＋</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">行数</div>
+        <div class="setting-control">
+          <button class="btn-small" onclick="adjRows(-1)">−</button>
+          <div class="num-display" id="row-display">4</div>
+          <button class="btn-small" onclick="adjRows(1)">＋</button>
+        </div>
+      </div>
+
+      <div class="setting-row" style="margin-bottom:6px;">
+        <div class="setting-label">セル比率</div>
+      </div>
+      <div class="ratio-btns" id="ratio-btns">
+        <button class="ratio-btn active" onclick="setRatio(4,6,this)">4:6</button>
+        <button class="ratio-btn" onclick="setRatio(1,1,this)">1:1</button>
+        <button class="ratio-btn" onclick="setRatio(16,9,this)">16:9</button>
+        <button class="ratio-btn" onclick="setRatio(9,16,this)">9:16</button>
+        <button class="ratio-btn" onclick="setRatio(3,4,this)">3:4</button>
+      </div>
+
+      <div class="setting-row" style="margin-top:10px;">
+        <div class="setting-label">ギャップ <span class="num-display" id="gap-display" style="font-size:0.75rem;">4</span>px</div>
+        <input type="range" class="gap-slider" min="0" max="20" value="4" oninput="setGap(this.value)">
+      </div>
+
+      <div class="setting-row" style="margin-bottom:6px; margin-top:10px;">
+        <div class="setting-label">画像フィット</div>
+      </div>
+      <div class="ratio-btns" id="fit-btns">
+        <button class="ratio-btn active" onclick="setFitMode('cover',this)" title="セルを埋める（トリミング）">クロップ</button>
+        <button class="ratio-btn" onclick="setFitMode('contain',this)" title="画像全体を表示（余白あり）">余白</button>
+        <button class="ratio-btn" onclick="setFitMode('auto-height',this)" title="最長画像に合わせて行高を伸ばす">高さ合わせ</button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel-section fixed-section">
+      <button class="btn-primary" onclick="autoFill()">⚡ 自動配置</button>
+      <button class="btn-secondary" onclick="clearGrid()">🗑 グリッドをクリア</button>
+      <button class="btn-primary" style="background:var(--accent2);" onclick="exportGrid()">💾 画像として保存</button>
+    </div>
+
+  </div>
+
+  <!-- CENTER CANVAS -->
+  <div class="panel-center">
+    <div class="canvas-toolbar">
+      <div class="canvas-info">
+        グリッド: <strong id="info-cols">3</strong>列 × <strong id="info-rows">4</strong>行
+        &nbsp;|&nbsp;
+        配置済み: <strong id="info-filled">0</strong> / <strong id="info-total">12</strong>
+      </div>
+      <div class="ml-auto" style="display:flex; gap:8px;">
+        <button class="btn-small" title="ズームアウト" onclick="zoom(-0.1)">−</button>
+        <div class="num-display" id="zoom-display" style="font-size:0.7rem; min-width:36px;">100%</div>
+        <button class="btn-small" title="ズームイン" onclick="zoom(0.1)">＋</button>
+        <button class="btn-small" title="フィット" onclick="zoomFit()">⊡</button>
+      </div>
+    </div>
+
+    <div class="grid-area" id="grid-area">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">🎨</div>
+        <div class="empty-text">左パネルから画像を追加して<br>グリッドを設定してください</div>
+      </div>
+      <div class="grid-canvas" id="grid-canvas" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PREVIEW MODAL ===== -->
+<div class="modal-overlay" id="preview-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">PREVIEW — 保存確認</div>
+      <button class="modal-close" id="modal-close-btn">×</button>
+    </div>
+    <div class="modal-img-wrap">
+      <img id="preview-img" src="" alt="プレビュー">
+    </div>
+    <div class="modal-footer">
+      <div class="modal-hint" id="save-hint"></div>
+      <div class="filename-row">
+        <input type="text" class="filename-input" id="filename-input" value="gridcut" placeholder="ファイル名">
+        <span class="filename-ext">.png</span>
+      </div>
+      <div class="modal-actions">
+        <a class="modal-btn-save" id="save-link" download="gridcut.png" href="#">💾 PNG保存</a>
+        <button class="modal-btn-save" id="save-pdf-btn" style="background:var(--accent);">📄 PDF保存</button>
+        <button class="modal-btn-cancel" id="modal-cancel-btn">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================
+     スクリプト読み込み(順序が大事)
+     state.js   → 共有状態とユーティリティ(他から参照される)
+     slice.js   → カット機能
+     library.js → ライブラリ
+     grid.js    → グリッド表示・自動配置
+     export.js  → PNG/PDF保存
+     main.js    → 全モジュールの起動(一番最後)
+     ============================================================ -->
+<script src="./js/state.js"></script>
+<script src="./js/slice.js"></script>
+<script src="./js/library.js"></script>
+<script src="./js/grid.js"></script>
+<script src="./js/export.js"></script>
+<script src="./js/main.js"></script>
+
+</body>
+</html>
